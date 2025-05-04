@@ -7,6 +7,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface StorageService {
-    String save(UUID userId, MultipartFile file) throws IOException;
+    String save(UUID userId, List<MultipartFile> files) throws IOException;
     List<String> listUserImages(UUID userId);
 }

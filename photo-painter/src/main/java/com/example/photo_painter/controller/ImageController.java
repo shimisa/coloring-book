@@ -17,10 +17,9 @@ public class ImageController {
 
     private final StorageService storageService;
 
-    @PostMapping("/upload")
-    public ResponseEntity<String> uploadImage(@RequestParam UUID userId,
-                                              @RequestParam MultipartFile file) throws IOException {
-        String imageUrl = storageService.save(userId, file);
+    @PostMapping("/upload-multiple")
+    public ResponseEntity<String> uploadImages(@RequestParam List<MultipartFile> files) throws IOException {
+        String imageUrl = storageService.save(UUID.randomUUID(), files);
         return ResponseEntity.ok(imageUrl);
     }
 

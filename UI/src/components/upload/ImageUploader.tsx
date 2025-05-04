@@ -10,12 +10,14 @@ import {
   Grid,
   Zoom,
   useTheme,
+  CircularProgress,
 } from '@mui/material';
 import { styled, keyframes } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CollectionsIcon from '@mui/icons-material/Collections';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import uploadService from '../../services/upload.service';
@@ -94,7 +96,8 @@ interface UploadedImage {
 
 const ImageUploader: React.FC = () => {
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const { showToast, setIsProcessing } = useApp();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { showToast } = useApp();
   const theme = useTheme();
   const navigate = useNavigate();
 
@@ -184,6 +187,30 @@ const ImageUploader: React.FC = () => {
     showToast('התמונות נוספו לגלריה שלך! 🎨', 'success');
   };
 
+  const handleContinueToShipping = async () => {
+    if (uploadedImages.length === 0) {
+      showToast('אנא העלו לפחות תמונה אחת', 'warning');
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      // Optimize all images first
+      const optimizedFiles = await Promise.all(
+        uploadedImages.map(image => uploadService.optimizeImage(image.file))
+      );
+      
+      // Upload all images in a single request
+      await uploadService.uploadMultipleImages(optimizedFiles);
+      showToast('התמונות הועלו בהצלחה!', 'success');
+      navigate('/shipping');
+    } catch (error) {
+      showToast('שגיאה בהעלאת התמונות', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" align="center" gutterBottom color="primary">
@@ -240,7 +267,7 @@ const ImageUploader: React.FC = () => {
                         />
                       </ProcessingOverlay>
                     )}
-                    <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between' }}>
+                    <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-start' }}>
                       <IconButton
                         color="error"
                         onClick={() => handleDelete(index)}
@@ -248,16 +275,6 @@ const ImageUploader: React.FC = () => {
                       >
                         <DeleteIcon />
                       </IconButton>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={() => handleConvert(index)}
-                        disabled={image.processing || image.converted}
-                        startIcon={<AutoFixHighIcon />}
-                        size="small"
-                      >
-                        {image.converted ? 'הומר בהצלחה' : 'המר לדף צביעה'}
-                      </Button>
                     </Box>
                   </PreviewContainer>
                 </Zoom>
@@ -265,28 +282,52 @@ const ImageUploader: React.FC = () => {
             ))}
           </Grid>
 
-          {/* Add the floating continue button */}
-          <Zoom in={uploadedImages.some(img => img.converted)}>
-            <Button
-              variant="contained"
-              color="primary"
-              size="large"
-              onClick={handleContinue}
-              sx={{
-                position: 'fixed',
-                bottom: 16,
-                right: 16,
-                zIndex: 1000,
-                borderRadius: '25px',
-                px: 4,
-                py: 1.5,
-                boxShadow: theme.shadows[4],
-              }}
-              startIcon={<CollectionsIcon />}
-            >
-              המשך לגלריה
-            </Button>
-          </Zoom>
+          {/* Add the floating buttons */}
+          <Box sx={{ 
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+            zIndex: 1000,
+            display: 'flex',
+            gap: 2,
+          }}>
+            <Zoom in={uploadedImages.some(img => img.converted)}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                onClick={handleContinue}
+                sx={{
+                  borderRadius: '25px',
+                  px: 4,
+                  py: 1.5,
+                  boxShadow: theme.shadows[4],
+                }}
+                startIcon={<CollectionsIcon />}
+              >
+                המשך לגלריה
+              </Button>
+            </Zoom>
+
+            <Zoom in={uploadedImages.length > 0}>
+              <Button
+                variant="contained"
+                color="secondary"
+                size="large"
+                onClick={handleContinueToShipping}
+                disabled={isProcessing}
+                sx={{
+                  borderRadius: '25px',
+                  px: 4,
+                  py: 1.5,
+                  boxShadow: theme.shadows[4],
+                }}
+                startIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : <LocalShippingIcon />}
+              >
+                המשך להזמנה
+              </Button>
+            </Zoom>
+          </Box>
         </Box>
       )}
     </Box>

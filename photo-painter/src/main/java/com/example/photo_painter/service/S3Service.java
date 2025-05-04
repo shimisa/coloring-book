@@ -35,20 +35,31 @@ public class S3Service implements StorageService{
             .region(Region.US_EAST_1)
             .build();
 
-    public String save(UUID userId, MultipartFile file) throws IOException {
-        String key = "user-uploads/" + userId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+    @Override
+    public String save(UUID userId, List<MultipartFile> files) throws IOException {
+        StringBuilder urls = new StringBuilder();
 
-        PutObjectRequest request = PutObjectRequest.builder()
-                .bucket(bucket)
-                .key(key)
-                .acl(ObjectCannedACL.PUBLIC_READ)
-                .contentType(file.getContentType())
-                .build();
+        for (MultipartFile file : files) {
+            String key = "user-uploads/" + userId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
 
-        s3Client.putObject(request, RequestBody.fromBytes(file.getBytes()));
-        String imageUrl = "https://" + bucket + ".s3.amazonaws.com/" + key;
-        pictureRepository.save(new Picture(userId, file.getOriginalFilename(), imageUrl));
-        return imageUrl;
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .acl(ObjectCannedACL.PUBLIC_READ)
+                    .contentType(file.getContentType())
+                    .build();
+
+            s3Client.putObject(request, RequestBody.fromBytes(file.getBytes()));
+            String imageUrl = "https://" + bucket + ".s3.amazonaws.com/" + key;
+            pictureRepository.save(new Picture(userId, file.getOriginalFilename(), imageUrl));
+
+            if (urls.length() > 0) {
+                urls.append(",");
+            }
+            urls.append(imageUrl);
+        }
+
+        return urls.toString();
     }
 
     @Override

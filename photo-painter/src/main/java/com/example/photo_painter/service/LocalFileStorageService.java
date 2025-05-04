@@ -23,17 +23,27 @@ public class LocalFileStorageService implements StorageService {
     private static final String BASE_DIR = "uploads/";
 
     @Override
-    public String save(UUID userId, MultipartFile file) throws IOException {
+    public String save(UUID userId, List<MultipartFile> files) throws IOException {
+        StringBuilder urls = new StringBuilder();
         String userDir = BASE_DIR + userId + "/";
         File dir = new File(userDir);
         if (!dir.exists()) dir.mkdirs();
 
-        String filePath = userDir + file.getOriginalFilename();
-        file.transferTo(new File(filePath));
+        for (MultipartFile file : files) {
+            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+            String filePath = userDir + fileName;
+            file.transferTo(new File(filePath));
 
-        String imageUrl = "http://localhost:8080/" + filePath; // Local URL for development
-        pictureRepository.save(new Picture(userId, file.getOriginalFilename(), imageUrl));
-        return filePath;
+            String imageUrl = "http://localhost:8080/" + filePath;
+            pictureRepository.save(new Picture(userId, fileName, imageUrl));
+
+            if (urls.length() > 0) {
+                urls.append(",");
+            }
+            urls.append(imageUrl);
+        }
+
+        return urls.toString();
     }
 
     @Override

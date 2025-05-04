@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { UploadResponse, ProcessingOptions } from '../types/upload.types';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api/photo-painter';
 
 class UploadService {
   async uploadImage(file: File): Promise<UploadResponse> {
@@ -9,7 +9,7 @@ class UploadService {
       const formData = new FormData();
       formData.append('image', file);
 
-      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+      const response = await axios.post(`${API_URL}/images/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -19,6 +19,28 @@ class UploadService {
     } catch (error) {
       console.error('Upload error:', error);
       throw new Error('שגיאה בהעלאת התמונה. אנא נסו שוב');
+    }
+  }
+
+  async uploadMultipleImages(files: File[]): Promise<UploadResponse[]> {
+    try {
+      const formData = new FormData();
+      
+      // Append each file with the field name 'images'
+      files.forEach((file) => {
+        formData.append('images', file);
+      });
+
+      const response = await axios.post(`${API_URL}/images/upload-multiple`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Multiple upload error:', error);
+      throw new Error('שגיאה בהעלאת התמונות. אנא נסו שוב');
     }
   }
 
