@@ -1,0 +1,29 @@
+{
+  "name": "family-photo-coloring-app",
+  "version": "1.0.0",
+  "description": "A React app for families to upload pictures and convert them into coloring books.",
+  "main": "src/index.tsx",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-scripts": "4.0.3",
+    "react-router-dom": "^5.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.1.2"
+  },
+  "keywords": [
+    "react",
+    "coloring book",
+    "family",
+    "children"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

@@ -1,0 +1,5 @@
+### Test Login Endpoint
+POST http://localhost:8080/api/login
+Content-Type: application/x-www-form-urlencoded
+
+username=sh.sadaka@gmail.com&password=123456

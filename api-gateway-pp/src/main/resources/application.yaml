@@ -1,0 +1,21 @@
+server:
+  port: 8080 # Gateway runs on port 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: user-auth
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/user-auth/**
+        - id: photo-painter
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/photo-painter/**
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
