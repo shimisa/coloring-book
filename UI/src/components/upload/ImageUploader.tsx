@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   Box,
@@ -18,7 +18,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import uploadService from '../../services/upload.service';
 import { SelectedImage } from '../../types/upload.types';
@@ -97,9 +97,19 @@ interface UploadedImage {
 const ImageUploader: React.FC = () => {
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { showToast } = useApp();
+  const { showToast, isAuthenticated } = useApp();
   const theme = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login', { 
+        state: { from: location },
+        replace: true 
+      });
+    }
+  }, [isAuthenticated, navigate, location]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (uploadedImages.length + acceptedFiles.length > 10) {

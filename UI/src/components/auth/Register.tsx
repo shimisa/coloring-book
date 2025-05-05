@@ -72,7 +72,11 @@ const Register = () => {
     validationSchema,
     onSubmit: async (values, { setSubmitting }) => {
       try {
-        const { confirmPassword, acceptTerms, ...registrationData } = values;
+        const { confirmPassword, acceptTerms, ...rest } = values;
+        const registrationData = {
+          ...rest,
+          username: values.email // Add username field using email
+        };
         await authService.register(registrationData);
         setRegistrationComplete(true);
         showToast('נרשמת בהצלחה! אנא בדוק את תיבת האימייל שלך לאימות החשבון', 'success');

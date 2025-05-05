@@ -9,6 +9,7 @@ import {
   Button,
   Link,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
@@ -39,17 +40,16 @@ const validationSchema = Yup.object({
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { showToast, isAuthenticated } = useApp();
+  const { showToast, isAuthenticated, isInitialized } = useApp();
   
-  // Get the intended destination from location state, or default to /gallery
   const from = location.state?.from?.pathname || '/gallery';
 
-  // If already authenticated, redirect to intended destination
   useEffect(() => {
-    if (isAuthenticated) {
+    // Only redirect if authenticated and not already on login page
+    if (isInitialized && isAuthenticated && location.pathname === '/login') {
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, from]);
+  }, [isAuthenticated, isInitialized, navigate, from, location.pathname]);
 
   const formik = useFormik({
     initialValues: {
@@ -59,8 +59,15 @@ const Login = () => {
     validationSchema,
     onSubmit: async (values, { setSubmitting }) => {
       try {
-        await authService.login(values);
+        // Create username from email for authentication
+        const loginData = {
+          username: values.email, // Pass email as username
+          password: values.password
+        };
+        
+        await authService.login(loginData);
         showToast('התחברת בהצלחה!', 'success');
+        // Navigation will be handled by the useEffect above
       } catch (error) {
         showToast('שגיאה בהתחברות. אנא בדקו את הפרטים ונסו שוב', 'error');
       } finally {
@@ -69,7 +76,12 @@ const Login = () => {
     },
   });
 
-  // If already authenticated, don't render the login form
+  // Only show loading while initializing
+  if (!isInitialized) {
+    return <CircularProgress />;
+  }
+
+  // If already authenticated and initialized, don't render the login form
   if (isAuthenticated) {
     return null;
   }

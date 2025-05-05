@@ -70,32 +70,40 @@ const LoadingFallback = () => (
 );
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useApp();
+  const { isAuthenticated, isInitialized } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
-    if (!isRedirecting && !isAuthenticated) {
-      setIsRedirecting(true);
+    if (isInitialized && !isAuthenticated && !hasRedirected) {
+      setHasRedirected(true); // Prevent multiple redirects
       navigate('/login', { 
         replace: true,
-        state: { from: location }
+        state: { from: location.pathname === '/login' ? '/' : location }
       });
     }
-  }, [isAuthenticated, navigate, location, isRedirecting]);
+  }, [isAuthenticated, isInitialized, navigate, location, hasRedirected]);
+
+  if (!isInitialized) {
+    return <LoadingFallback />;
+  }
 
   return isAuthenticated ? <>{children}</> : null;
 };
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, showToast } = useApp();
+  const { isAuthenticated, isInitialized, showToast } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
 
   useEffect(() => {
+    if (!isInitialized) {
+      return; // Wait for auth state to be initialized
+    }
+
     if (!isRedirecting) {
       if (!isAuthenticated) {
         setIsRedirecting(true);
@@ -113,7 +121,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
         }
       }
     }
-  }, [isAuthenticated, navigate, location, isRedirecting, selectedImages.length, showToast]);
+  }, [isAuthenticated, navigate, location, isRedirecting, selectedImages.length, showToast, isInitialized]);
+
+  if (!isInitialized) {
+    return <LoadingFallback />;
+  }
 
   return isAuthenticated ? <>{children}</> : null;
 };
@@ -158,7 +170,8 @@ const AppContent: React.FC = () => {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/confirm_email" element={<EmailConfirmation />} />
+          <Route path="/register/confirm-email" element={<EmailConfirmation />} />
+          <Route path="/confirm-email" element={<EmailConfirmation />} />
           <Route
             path="/upload"
             element={

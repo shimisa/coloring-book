@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useTransition, startTransition, useEffect } from 'react';
 import type { AlertColor } from '@mui/material';
+import { CircularProgress } from '@mui/material';
 import { authService } from '../services/auth.service';
 import axios from 'axios';
 
@@ -18,6 +19,7 @@ interface AppContextType {
   playSound: (soundName: 'upload-success' | 'magic-convert' | 'notification') => void;
   isAuthenticated: boolean;
   user: any | null;
+  isInitialized: boolean; // Add this to the context value
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -31,42 +33,104 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [isPending, startTransition] = useTransition();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+    let initializationTimeout: NodeJS.Timeout;
+    
     const initializeAuth = async () => {
       try {
         const savedUser = localStorage.getItem('currentUser');
-        if (savedUser) {
-          // Try to refresh the auth state if a user exists
-          await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:8080'}/api/user-auth/refresh`, {}, { 
-            withCredentials: true 
-          });
-          const parsedUser = JSON.parse(savedUser);
+        
+        // First set the initial state from localStorage
+        if (!savedUser) {
+          if (mounted) {
+            startTransition(() => {
+              setUser(null);
+              setIsAuthenticated(false);
+              setIsInitialized(true);
+              setIsReady(true);
+            });
+          }
+          return;
+        }
+
+        // Parse saved user and set initial state
+        const parsedUser = JSON.parse(savedUser);
+        if (mounted) {
           startTransition(() => {
             setUser(parsedUser);
-            setIsAuthenticated(true);
+            setIsAuthenticated(Boolean(parsedUser?.authenticated));
           });
         }
+
+        // Then try to refresh the auth state
+        try {
+          const refreshResult = await authService.refreshToken();
+          if (mounted) {
+            if (!refreshResult) {
+              localStorage.removeItem('currentUser');
+              startTransition(() => {
+                setUser(null);
+                setIsAuthenticated(false);
+              });
+            }
+          }
+        } catch (error) {
+          if (mounted) {
+            localStorage.removeItem('currentUser');
+            startTransition(() => {
+              setUser(null);
+              setIsAuthenticated(false);
+            });
+          }
+        } finally {
+          if (mounted) {
+            setIsInitialized(true);
+            setIsReady(true);
+          }
+        }
       } catch (error) {
-        // If refresh fails, clear the stored user data
-        localStorage.removeItem('currentUser');
-        startTransition(() => {
-          setUser(null);
-          setIsAuthenticated(false);
-        });
-      } finally {
-        setIsInitialized(true);
+        if (mounted) {
+          localStorage.removeItem('currentUser');
+          startTransition(() => {
+            setUser(null);
+            setIsAuthenticated(false);
+            setIsInitialized(true);
+            setIsReady(true);
+          });
+        }
       }
     };
 
-    initializeAuth();
+    // Set a small delay before initialization to ensure consistent state
+    initializationTimeout = setTimeout(initializeAuth, 100);
 
-    const handleUserUpdate = () => {
+    // Add axios response interceptor for auth errors
+    const interceptor = axios.interceptors.response.use(
+      response => response,
+      async (error) => {
+        if (error.response?.status === 401 && mounted) {
+          localStorage.removeItem('currentUser');
+          startTransition(() => {
+            setUser(null);
+            setIsAuthenticated(false);
+          });
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Update auth state when storage changes
+    const handleStorage = () => {
+      if (!mounted) return;
       const savedUser = localStorage.getItem('currentUser');
       startTransition(() => {
         if (savedUser) {
-          setUser(JSON.parse(savedUser));
-          setIsAuthenticated(true);
+          const parsedUser = JSON.parse(savedUser);
+          setUser(parsedUser);
+          setIsAuthenticated(Boolean(parsedUser?.authenticated));
         } else {
           setUser(null);
           setIsAuthenticated(false);
@@ -74,9 +138,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     };
 
-    window.addEventListener('user-update', handleUserUpdate);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('user-update', handleStorage);
+
     return () => {
-      window.removeEventListener('user-update', handleUserUpdate);
+      mounted = false;
+      clearTimeout(initializationTimeout);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('user-update', handleStorage);
+      axios.interceptors.response.eject(interceptor);
     };
   }, []);
 
@@ -108,10 +178,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     playSound,
     isAuthenticated,
     user,
+    isInitialized, // Add this to the context value
   };
 
   // Dynamically import Toast component to avoid circular dependency
   const Toast = React.lazy(() => import('../components/shared/Toast'));
+
+  // Show loading state while initializing auth
+  if (!isReady) {
+    return <CircularProgress />;
+  }
 
   return (
     <AppContext.Provider value={value}>

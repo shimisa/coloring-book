@@ -25,16 +25,24 @@ const ConfirmationContainer = styled(Paper)(({ theme }) => ({
   borderRadius: '12px',
 }));
 
-const IconContainer = styled(Box)(({ theme }) => ({
-  backgroundColor: theme.palette.primary.main,
+interface IconContainerProps {
+  success?: boolean;
+}
+
+const IconContainer = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'success',
+})<IconContainerProps>(({ theme, success }) => ({
+  backgroundColor: success ? theme.palette.success.main : theme.palette.primary.main,
   borderRadius: '50%',
   padding: theme.spacing(2),
   marginBottom: theme.spacing(2),
+  transition: 'background-color 0.3s ease',
 }));
 
 const EmailConfirmation = () => {
   const [isVerifying, setIsVerifying] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useApp();
@@ -44,6 +52,8 @@ const EmailConfirmation = () => {
       try {
         const params = new URLSearchParams(location.search);
         const token = params.get('token');
+        console.log('Current URL:', window.location.href);
+        console.log('Token from URL:', token);
 
         if (!token) {
           setError('קישור לא תקין. אנא בדקו את הקישור שנשלח אליכם במייל.');
@@ -51,13 +61,15 @@ const EmailConfirmation = () => {
         }
 
         await authService.confirmEmail(token);
+        setSuccess(true);
         showToast('האימייל אומת בהצלחה! אנא התחברו למערכת', 'success');
         // Short delay before navigation to let the user see the success message
         setTimeout(() => {
           navigate('/login');
-        }, 2000);
-      } catch (err) {
-        setError('שגיאה באימות האימייל. אנא נסו שוב מאוחר יותר.');
+        }, 3000);
+      } catch (err: any) {
+        console.error('Email confirmation error details:', err);
+        setError(err.message || 'שגיאה באימות האימייל. אנא נסו שוב מאוחר יותר.');
         showToast('שגיאה באימות האימייל', 'error');
       } finally {
         setIsVerifying(false);
@@ -97,12 +109,15 @@ const EmailConfirmation = () => {
         </>
       ) : (
         <>
-          <IconContainer>
+          <IconContainer success>
             <MarkEmailReadIcon sx={{ fontSize: 40, color: 'white' }} />
           </IconContainer>
           <Typography variant="h6" gutterBottom>
             האימייל אומת בהצלחה!
           </Typography>
+          <Alert severity="success" sx={{ mt: 2, mb: 2 }}>
+            החשבון שלך אומת בהצלחה. כעת תוכל להתחבר למערכת.
+          </Alert>
           <Typography color="text.secondary" align="center" sx={{ mb: 2 }}>
             מיד תועברו לדף ההתחברות...
           </Typography>
