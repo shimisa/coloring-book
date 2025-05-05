@@ -76,21 +76,22 @@ class AuthService {
       const response = await axios.post(`${API_URL}/register`, data, {
         withCredentials: true
       });
-      if (response.data?.user && !response.data.message?.includes('Email already exists')) {
+      
+      if (response.data?.user) {
         this.currentUser = response.data.user;
         window.dispatchEvent(new Event('user-update'));
       }
-      if (response.data?.message) {
-        throw new Error(response.data.message);
-      }
       return response.data;
-    } catch (err) {
-      const error = err as Error;
-      console.error('Registration error:', error);
-      if (error.message.includes('Email already exists')) {
-        throw error;
+      
+    } catch (err: any) {
+      // Handle specific 409 Conflict error for existing email
+      if (err.response?.status === 409) {
+        throw new Error('כתובת האימייל או הסיסמה כבר קיימים במערכת. אנא נסו שוב עם פרטים אחרים');
       }
-      throw new Error(error.message || 'שגיאה בהרשמה. אנא בדקו את הפרטים ונסו שוב');
+      
+      // Handle other errors
+      console.error('Registration error:', err);
+      throw new Error(err.response?.data?.message || 'שגיאה בהרשמה. אנא בדקו את הפרטים ונסו שוב');
     }
   }
 

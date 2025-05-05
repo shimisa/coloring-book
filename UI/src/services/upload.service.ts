@@ -36,6 +36,7 @@ class UploadService {
           'Content-Type': 'multipart/form-data',
         },
       });
+      console.log('Multiple upload response:', response.data);
 
       return response.data;
     } catch (error) {
