@@ -23,8 +23,7 @@ public class ColoringBookController {
 
     @PostMapping("/generate-coloring-book")
     public ResponseEntity<String> generate(@RequestParam UUID userId) throws IOException {
-        String result = coloringBookService.generateColoringPage(userId);
-        return ResponseEntity.ok()
-                .body(result);
+        coloringBookService.generateColoringPage(userId);
+        return ResponseEntity.ok().build();
     }
 }

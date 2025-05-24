@@ -19,6 +19,9 @@ import java.util.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+
 
 @Slf4j
 @Service
@@ -28,71 +31,105 @@ public class ColoringBookService {
     private final OpenAiImageModel imageModel;
     private final RestClient restClient;
     private final StorageService storageService;
+    private final Executor executor;
 
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
 
+    public void generateColoringPage(UUID userId) {
+        try {
+            List<String> imageUrls = storageService.listUserImages(userId);
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-    public String generateColoringPage(UUID userId) throws IOException {
+            // Create a virtual thread for each image
+            for (String imageUrl : imageUrls) {
+                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                    try {
+                        processImage(imageUrl, userId);
+                    } catch (Exception e) {
+                        log.error("Error processing image {}: {}", imageUrl, e.getMessage(), e);
+                    }
+                }, executor);
+                futures.add(future);
+            }
 
-        List<String> imageUrls = storageService.listUserImages(userId);
+            // Non-blocking wait for all futures
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .exceptionally(throwable -> {
+                        log.error("Error processing images: {}", throwable.getMessage(), throwable);
+                        return null;
+                    });
 
+        } catch (Exception e) {
+            log.error("Failed to start image processing: {}", e.getMessage(), e);
+        }
+    }
 
-        byte[] imageBytes = Files.readAllBytes(Path.of("C:\\Users\\shsad\\photo-painter-uploads\\bac0c2ec-2568-4437-b35a-1ab2297ac689\\ac59e5e1-1efc-4320-8e59-b6217ffb1a93_download.jpeg"));
+    private void processImage(String imageUrl, UUID userId) throws IOException {
+        MultipartFile file = storageService.getFile(imageUrl);
+        if (file == null) {
+            throw new RuntimeException("File not found: " + imageUrl);
+        }
 
         // Create multipart body builder
         MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
         bodyBuilder.part("model", "gpt-image-1");
-        //bodyBuilder.part("prompt", "Create a black and white coloring book style of the picture");
         bodyBuilder.part("prompt", """
-                Make this a page in a colouring book.\s
-                The drawing is in a simple Studio Ghibli portrait style.\s
-                Bleed all the way to the edges.\s
-                Background colour is hashtag#ffffff and lines are bold and #000000.\s
-                There is no shading or crossthatching.
-                """);
+            Make this a page in a colouring book.\s
+            The drawing is in a simple Studio Ghibli portrait style.\s
+            Bleed all the way to the edges.\s
+            Background colour is hashtag#ffffff and lines are bold and #000000.\s
+            There is no shading or crossthatching.
+            """);
 
-        // Add all images from URLs
-        for (String imageUrl : imageUrls) {
-            MultipartFile file = storageService.getFile(imageUrl);
-            if (file != null) {
-                bodyBuilder.part("image[]", new ByteArrayResource(file.getBytes()) {
-                    @Override
-                    public String getFilename() {
-                        return file.getOriginalFilename();
-                    }
-                });
+        // Add single image
+        bodyBuilder.part("image", new ByteArrayResource(file.getBytes()) {
+            @Override
+            public String getFilename() {
+                return file.getOriginalFilename();
             }
-        }
+        });
 
-        // Build the multipart body
         MultiValueMap<String, HttpEntity<?>> multipartBody = bodyBuilder.build();
 
-        // Make request to OpenAI API
-        String response = restClient.post()
-                .uri("https://api.openai.com/v1/images/edits" + "nadananan")
-                .header("Authorization", "Bearer " + apiKey)
-                .body(multipartBody)
-                .retrieve()
-                .body(String.class);
+        try {
+            // Make request to OpenAI API
+            String response = restClient.post()
+                    .uri("https://api.openai.com/v1/images/edits")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .body(multipartBody)
+                    .retrieve()
+                    .body(String.class);
 
-        // Parse response and get base64 image data
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode root = mapper.readTree(response);
-        String base64Image = root.path("data").get(0).path("b64_json").asText();
+            // Parse response
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(response);
 
-        // Convert base64 to byte array
-        byte[] imageData = Base64.getDecoder().decode(base64Image);
+            // Check for errors
+            if (root.has("error")) {
+                String errorMessage = root.path("error").path("message").asText();
+                throw new RuntimeException("OpenAI API error: " + errorMessage);
+            }
 
-        // Save to file
-        String outputFileName = UUID.randomUUID() + "_coloring.png";
-        Path outputPath = Path.of(System.getProperty("user.home"))
-                .resolve("photo-painter-uploads")
-                .resolve(outputFileName);
+            // Process response
+            String base64Image = root.path("data").get(0).path("b64_json").asText();
+            byte[] imageData = Base64.getDecoder().decode(base64Image);
 
-        Files.write(outputPath, imageData);
-        log.info("Saved coloring page to: {}", outputPath);
+            // Save to file
+            String outputFileName = UUID.randomUUID() + "_coloring.png";
+            Path outputPath = Path.of(System.getProperty("user.home"))
+                    .resolve("photo-painter-uploads")
+                    .resolve(userId.toString())
+                    .resolve("coloring_book")
+                    .resolve(outputFileName);
 
-        return outputPath.toString();
+            Files.createDirectories(outputPath.getParent());
+            Files.write(outputPath, imageData);
+            log.info("Saved coloring page to: {}", outputPath);
+
+        } catch (Exception e) {
+            log.error("Error processing image {}: {}", imageUrl, e.getMessage());
+            throw new RuntimeException("Failed to process image: " + e.getMessage(), e);
+        }
     }
 }
