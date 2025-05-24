@@ -1,61 +1,98 @@
 package com.example.photo_painter.service;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.openai.OpenAiImageModel;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.multipart.MultipartFile;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.util.MultiValueMap;
 
-import java.util.Base64;
-import java.util.List;
+import java.util.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ColoringBookService {
 
-    @Value("${openai.api.key}")
-    private String openAiApiKey;
+    private final OpenAiImageModel imageModel;
+    private final RestClient restClient;
+    private final StorageService storageService;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Value("${spring.ai.openai.api-key}")
+    private String apiKey;
 
-    public byte[] generateColoringBook(List<String> imageUrls) {
-        String prompt = createPromptFromImages(imageUrls);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(openAiApiKey);
-        headers.setContentType(MediaType.APPLICATION_JSON);
+    public String generateColoringPage(UUID userId) throws IOException {
 
-        ImageGenerationRequest request = new ImageGenerationRequest("gpt-image-1", prompt);
-        HttpEntity<ImageGenerationRequest> httpEntity = new HttpEntity<>(request, headers);
+        List<String> imageUrls = storageService.listUserImages(userId);
 
-        ResponseEntity<ImageGenerationResponse> response = restTemplate.exchange(
-                "https://api.openai.com/v1/images/generations",
-                HttpMethod.POST,
-                httpEntity,
-                ImageGenerationResponse.class
-        );
 
-        String base64Image = response.getBody().data[0].b64_json;
-        return Base64.getDecoder().decode(base64Image);
-    }
+        byte[] imageBytes = Files.readAllBytes(Path.of("C:\\Users\\shsad\\photo-painter-uploads\\bac0c2ec-2568-4437-b35a-1ab2297ac689\\ac59e5e1-1efc-4320-8e59-b6217ffb1a93_download.jpeg"));
 
-    private String createPromptFromImages(List<String> imageUrls) {
-        return "Create a children's coloring book-style drawing that combines elements of a family enjoying time together. Focus on outlines only, no shading or colors.";
-    }
+        // Create multipart body builder
+        MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+        bodyBuilder.part("model", "gpt-image-1");
+        //bodyBuilder.part("prompt", "Create a black and white coloring book style of the picture");
+        bodyBuilder.part("prompt", """
+                Make this a page in a colouring book.\s
+                The drawing is in a simple Studio Ghibli portrait style.\s
+                Bleed all the way to the edges.\s
+                Background colour is hashtag#ffffff and lines are bold and #000000.\s
+                There is no shading or crossthatching.
+                """);
 
-    private record ImageGenerationRequest(String model, String prompt) {}
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class ImageGenerationResponse {
-        public Data[] data;
-
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        public static class Data {
-            @JsonProperty("b64_json")
-            public String b64_json;
+        // Add all images from URLs
+        for (String imageUrl : imageUrls) {
+            MultipartFile file = storageService.getFile(imageUrl);
+            if (file != null) {
+                bodyBuilder.part("image[]", new ByteArrayResource(file.getBytes()) {
+                    @Override
+                    public String getFilename() {
+                        return file.getOriginalFilename();
+                    }
+                });
+            }
         }
+
+        // Build the multipart body
+        MultiValueMap<String, HttpEntity<?>> multipartBody = bodyBuilder.build();
+
+        // Make request to OpenAI API
+        String response = restClient.post()
+                .uri("https://api.openai.com/v1/images/edits" + "nadananan")
+                .header("Authorization", "Bearer " + apiKey)
+                .body(multipartBody)
+                .retrieve()
+                .body(String.class);
+
+        // Parse response and get base64 image data
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(response);
+        String base64Image = root.path("data").get(0).path("b64_json").asText();
+
+        // Convert base64 to byte array
+        byte[] imageData = Base64.getDecoder().decode(base64Image);
+
+        // Save to file
+        String outputFileName = UUID.randomUUID() + "_coloring.png";
+        Path outputPath = Path.of(System.getProperty("user.home"))
+                .resolve("photo-painter-uploads")
+                .resolve(outputFileName);
+
+        Files.write(outputPath, imageData);
+        log.info("Saved coloring page to: {}", outputPath);
+
+        return outputPath.toString();
     }
 }
