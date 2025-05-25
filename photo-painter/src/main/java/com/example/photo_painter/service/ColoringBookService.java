@@ -55,6 +55,16 @@ public class ColoringBookService {
 
             // Non-blocking wait for all futures
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .thenRunAsync(() -> {
+                        try {
+                            log.info("All images processed for user: {}", userId);
+                            // todo: async completion logic
+                            // e.g. send notification, update status
+                        } catch (Exception e) {
+                            log.error("Error in completion handler: {}", e.getMessage(), e);
+                        }
+
+                    })
                     .exceptionally(throwable -> {
                         log.error("Error processing images: {}", throwable.getMessage(), throwable);
                         return null;
@@ -71,65 +81,75 @@ public class ColoringBookService {
             throw new RuntimeException("File not found: " + imageUrl);
         }
 
-        // Create multipart body builder
+        try {
+            byte[] imageData = callOpenAiApi(file);
+            saveImageToFile(imageData, userId);
+        } catch (Exception e) {
+            log.error("Error processing image {}: {}", imageUrl, e.getMessage());
+            throw new RuntimeException("Failed to process image: " + e.getMessage(), e);
+        }
+    }
+
+    private byte[] callOpenAiApi(MultipartFile file) throws IOException {
+        MultiValueMap<String, HttpEntity<?>> multipartBody = createMultipartBody(file);
+        String response = makeApiRequest(multipartBody);
+        return processApiResponse(response);
+    }
+
+    private MultiValueMap<String, HttpEntity<?>> createMultipartBody(MultipartFile file) throws IOException {
         MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
         bodyBuilder.part("model", "gpt-image-1");
         bodyBuilder.part("prompt", """
-            Make this a page in a colouring book.\s
-            The drawing is in a simple Studio Ghibli portrait style.\s
-            Bleed all the way to the edges.\s
-            Background colour is hashtag#ffffff and lines are bold and #000000.\s
-            There is no shading or crossthatching.
-            """);
+        Make this a page in a colouring book.\s
+        The drawing is in a simple Studio Ghibli portrait style.\s
+        Bleed all the way to the edges.\s
+        Background colour is hashtag#ffffff and lines are bold and #000000.\s
+        There is no shading or crossthatching.
+        """);
 
-        // Add single image
-        bodyBuilder.part("image", new ByteArrayResource(file.getBytes()) {
+        ByteArrayResource fileBytes = new ByteArrayResource(file.getBytes()) {
             @Override
             public String getFilename() {
                 return file.getOriginalFilename();
             }
-        });
+        };
+        bodyBuilder.part("image", fileBytes);
+        return bodyBuilder.build();
+    }
 
-        MultiValueMap<String, HttpEntity<?>> multipartBody = bodyBuilder.build();
+    private String makeApiRequest(MultiValueMap<String, HttpEntity<?>> multipartBody) {
+        return restClient.post()
+                .uri("https://api.openai.com/v1/images/edits")
+                .header("Authorization", "Bearer " + apiKey)
+                .body(multipartBody)
+                .retrieve()
+                .body(String.class);
+    }
 
-        try {
-            // Make request to OpenAI API
-            String response = restClient.post()
-                    .uri("https://api.openai.com/v1/images/edits")
-                    .header("Authorization", "Bearer " + apiKey)
-                    .body(multipartBody)
-                    .retrieve()
-                    .body(String.class);
+    private byte[] processApiResponse(String response) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(response);
 
-            // Parse response
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode root = mapper.readTree(response);
+        if (root.has("error")) {
+            String errorMessage = root.path("error").path("message").asText();
+            throw new RuntimeException("OpenAI API error: " + errorMessage);
+        }
 
-            // Check for errors
-            if (root.has("error")) {
-                String errorMessage = root.path("error").path("message").asText();
-                throw new RuntimeException("OpenAI API error: " + errorMessage);
-            }
+        String base64Image = root.path("data").get(0).path("b64_json").asText();
+        return Base64.getDecoder().decode(base64Image);
+    }
 
-            // Process response
-            String base64Image = root.path("data").get(0).path("b64_json").asText();
-            byte[] imageData = Base64.getDecoder().decode(base64Image);
+    private void saveImageToFile(byte[] imageData, UUID userId) throws IOException {
+        Path outputPath = Path.of(System.getProperty("user.home"))
+                .resolve("photo-painter-uploads")
+                .resolve(userId.toString())
+                .resolve("coloring_book")
+                .resolve(UUID.randomUUID() + "_coloring.png");
 
-            // Save to file
-            String outputFileName = UUID.randomUUID() + "_coloring.png";
-            Path outputPath = Path.of(System.getProperty("user.home"))
-                    .resolve("photo-painter-uploads")
-                    .resolve(userId.toString())
-                    .resolve("coloring_book")
-                    .resolve(outputFileName);
-
-            Files.createDirectories(outputPath.getParent());
-            Files.write(outputPath, imageData);
+        Files.createDirectories(outputPath.getParent());
+        try (var outputStream = Files.newOutputStream(outputPath)) {
+            outputStream.write(imageData);
             log.info("Saved coloring page to: {}", outputPath);
-
-        } catch (Exception e) {
-            log.error("Error processing image {}: {}", imageUrl, e.getMessage());
-            throw new RuntimeException("Failed to process image: " + e.getMessage(), e);
         }
     }
 }
