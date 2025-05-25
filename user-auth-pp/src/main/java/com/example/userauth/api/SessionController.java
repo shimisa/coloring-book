@@ -3,6 +3,7 @@ package com.example.userauth.api;
 import com.example.userauth.service.IsAuthenticatedResponse;
 import com.example.userauth.service.SessionService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,12 @@ public class SessionController {
     public ResponseEntity<IsAuthenticatedResponse> checkAuthentication(@CookieValue(name = "access_token") String token){
         IsAuthenticatedResponse response = sessionService.checkAuthentication(token);
         return ResponseEntity.ok().body(response);
+    }
+
+    @PostMapping(path = "/logout")
+    public ResponseEntity<String> logout(HttpServletResponse response) {
+        sessionService.logout(response);
+        return ResponseEntity.ok().body("Logged out successfully");
     }
 
 

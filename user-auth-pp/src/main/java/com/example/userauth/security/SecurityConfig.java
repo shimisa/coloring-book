@@ -35,12 +35,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         CustomAuthenticationFilter customAuthenticationFilter = new CustomAuthenticationFilter(authenticationManager(http.getSharedObject(AuthenticationConfiguration.class)));
-        customAuthenticationFilter.setFilterProcessesUrl("/login");
+        customAuthenticationFilter.setFilterProcessesUrl("/login"); // set the login URL
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
         http.csrf(AbstractHttpConfigurer::disable);
         http.sessionManagement(session -> session.sessionCreationPolicy(STATELESS));
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/login/**", "/register/**", "/token/refresh/**").permitAll()
+                .requestMatchers("/login/**", "/logout/**", "/register/**", "/token/refresh/**").permitAll()
                 .requestMatchers(GET, "/vehicles").hasAnyAuthority(ROLE_ADMIN.name())
                 .requestMatchers(POST, "/vehicle/**").hasAnyAuthority(ROLE_USER.name())
                 .requestMatchers(GET, "/vehicle/**").hasAnyAuthority(ROLE_USER.name())
