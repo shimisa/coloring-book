@@ -167,10 +167,26 @@ class AuthService {
 
   async logout(): Promise<void> {
     try {
-      await axios.post(`${API_URL}/logout`, this.currentUser, { withCredentials: true });
+      // Make the server-side logout call to clear the session and invalidate cookies
+      const response = await axios.post(`${API_URL}/logout`, null, { 
+        withCredentials: true
+      });
+
+      if (response.status !== 200) {
+        throw new Error('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Continue with client-side cleanup even if server request fails
     } finally {
+      // Clear client-side state
       this.currentUser = null;
       localStorage.removeItem('currentUser');
+      
+      // Remove any Authorization headers
+      delete axios.defaults.headers.common['Authorization'];
+      
+      // Notify the app about the logout
       window.dispatchEvent(new Event('user-update'));
     }
   }
