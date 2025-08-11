@@ -40,3 +40,8 @@ spring:
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG
+
+
+app:
+  auth:
+    service-url: http://localhost:8081/api/user-auth/check-auth

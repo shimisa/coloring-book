@@ -15,6 +15,7 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public IsAuthenticatedResponse checkAuthentication(String token) {
         com.example.userauth.domain.User user = userService.getUserByToken(token);
+        log.info("The user is logged in: {}", user.getEmail());
         return new IsAuthenticatedResponse(true, new User(user.getFirstName(), user.getLastName()));
     }
 
