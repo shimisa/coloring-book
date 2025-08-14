@@ -32,7 +32,6 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
  * @version 1.0
  * @since 1/16/2022
  */
-@CrossOrigin(origins = "http://localhost:3000")
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -43,6 +42,12 @@ public class UserResource {
     @GetMapping("/users")
     public ResponseEntity<List<User>> getUsers(@RequestParam(defaultValue = "0") int page) {
         return ResponseEntity.ok().body(userService.getUsers(page));
+    }
+
+    @GetMapping("/users/{username}")
+    public ResponseEntity<User> getUserByUsername(@PathVariable String username) {
+        User user = userService.getUser(username);
+        return ResponseEntity.ok().body(user);
     }
 
     @PostMapping("/user/save")

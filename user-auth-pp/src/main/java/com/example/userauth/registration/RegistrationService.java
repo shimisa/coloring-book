@@ -45,8 +45,8 @@ public class RegistrationService {
         }
         return CompletableFuture.completedFuture(userService.signUpUser(
                 new User(
-                        request.getFirstName(),
-                        request.getLastName(),
+                        request.getFirstname(),
+                        request.getLastname(),
                         request.getEmail(),
                         request.getPassword(),
                         RoleName.ROLE_USER

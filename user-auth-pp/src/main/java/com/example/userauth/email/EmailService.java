@@ -54,6 +54,7 @@ public class EmailService implements EmailSender {
             LOGGER.info("Email sent to {}", to);
         } catch (MessagingException e) {
             LOGGER.error("Issues sending email to {}", to, e);
+            throw new RuntimeException(e);
         }
     }
 

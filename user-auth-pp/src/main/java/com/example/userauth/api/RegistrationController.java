@@ -31,7 +31,6 @@ public class RegistrationController {
 
     @PostMapping
     public ResponseEntity<RegistrationResponse> register(@RequestBody RegistrationRequest request) throws ExecutionException, InterruptedException {
-        URI uri = URI.create(ServletUriComponentsBuilder.fromCurrentContextPath().path("api/user/save").toString());
         RegistrationResponse response = registrationService.register(request).get();
         return ResponseEntity.status(response.getStatus()).body(response);
     }
