@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: api-gateway
+    name: api-gateway-pp
   cloud:
     gateway:
       default-filters:
@@ -29,19 +29,27 @@ spring:
             maxAge: 3600
       routes:
         - id: user-auth
-          uri: http://localhost:8081
+          uri: ${app.user-auth-service.url}
           predicates:
             - Path=/api/user-auth/**
         - id: photo-painter
-          uri: http://localhost:8082
+          uri: ${app.photo-painter-service.url}
           predicates:
             - Path=/api/photo-painter/**
+        # Add other service routes here
+
+app:
+  user-auth-service:
+    url: http://localhost:8081
+  photo-painter-service:
+    url: http://localhost:8082
+
+# JWT configuration
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 3600000 # 1 hour in milliseconds
 
 logging:
   level:
+    com.example.api_gateway: DEBUG
     org.springframework.cloud.gateway: DEBUG
-
-
-app:
-  auth:
-    service-url: http://localhost:8081/api/user-auth/check-auth

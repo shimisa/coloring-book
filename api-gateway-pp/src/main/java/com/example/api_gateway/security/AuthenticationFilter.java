@@ -1,58 +1,110 @@
 package com.example.api_gateway.security;
 
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.example.api_gateway.dto.UserDetailsDto;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.http.HttpCookie;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
-@Component
-public class AuthenticationFilter implements GlobalFilter {
-    private final WebClient webClient;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
-    public AuthenticationFilter(@Qualifier("authWebClient") WebClient webClient) {
-        this.webClient = webClient;
+import static java.util.Arrays.stream;
+
+@Slf4j
+@Component
+public class AuthenticationFilter implements WebFilter {
+
+    private final WebClient userServiceWebClient;
+
+    public AuthenticationFilter(@Qualifier("userServiceWebClient") WebClient userServiceWebClient) {
+        this.userServiceWebClient = userServiceWebClient;
     }
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        ServerHttpRequest request = exchange.getRequest();
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+        String path = exchange.getRequest().getPath().value();
 
-        if (request.getPath().toString().contains("/api/user-auth/login") ||
-                request.getPath().toString().contains("/api/user-auth/register")) {
+        // Avoid duplicate authentication per request
+        if (exchange.getAttribute("AUTH_DONE") != null) {
             return chain.filter(exchange);
         }
 
-        HttpCookie access_token = request.getCookies().getFirst("access_token");
-        HttpCookie refresh_token = request.getCookies().getFirst("refresh_token");
-        if (access_token == null || refresh_token == null) {
-            return onError(exchange, "No token cookie found", HttpStatus.UNAUTHORIZED);
+        // Skip authentication for these paths
+        if (path.matches("(.*)/login") ||
+            path.matches("(.*)/register(.*)") ||
+            path.matches("(.*)/token/refresh(.*)") ||
+            path.matches("/api/auth/.*")) {
+            return chain.filter(exchange);
         }
 
-        return webClient.get()
-                .cookie("access_token", access_token.getValue())
-                .cookie("refresh_token", refresh_token.getValue())
-                .exchangeToMono(clientResponse -> {
-                    if (clientResponse.statusCode().is2xxSuccessful()) {
-                        return chain.filter(exchange);
-                    }
-                    return onError(exchange, "Authentication failed", HttpStatus.UNAUTHORIZED);
+        // Check for access_token cookie
+        List<HttpCookie> cookies = exchange.getRequest().getCookies().get("access_token");
+        if (cookies == null || cookies.isEmpty()) {
+            log.debug("No access_token cookie found for path: {}", path);
+            return chain.filter(exchange);
+        }
+
+        try {
+            String token = cookies.get(0).getValue();
+            DecodedJWT decodedJWT = SecurityUtil.getDecodedJWT(token);
+            String username = decodedJWT.getSubject();
+            String[] roles = decodedJWT.getClaim("role").asArray(String.class);
+
+            Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            if (roles != null) {
+                stream(roles).forEach(role -> {
+                    authorities.add(new SimpleGrantedAuthority(role));
+                });
+            }
+
+            UsernamePasswordAuthenticationToken authenticationToken =
+                new UsernamePasswordAuthenticationToken(username, null, authorities);
+
+            // Mark authentication as done for this request (set before async work)
+            exchange.getAttributes().put("AUTH_DONE", true);
+
+            // Add user details to request attributes for downstream services
+            return fetchUserDetails(username)
+                .doOnNext(userDetails -> {
+                    exchange.getAttributes().put("userDetails", userDetails);
+                    exchange.getAttributes().put("username", username);
                 })
-                .onErrorResume(e -> onError(exchange, "Invalid token", HttpStatus.UNAUTHORIZED));
+                .then(chain.filter(exchange)
+                    .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authenticationToken)))
+                .onErrorResume(ex -> {
+                    log.error("Error fetching user details for {}: {}", username, ex.getMessage());
+                    // Continue without user details but with authentication
+                    return chain.filter(exchange)
+                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authenticationToken));
+                });
+
+        } catch (Exception exception) {
+            log.error("Error validating token: ", exception);
+            return chain.filter(exchange);
+        }
     }
 
-    private Mono<Void> onError(ServerWebExchange exchange, String message, HttpStatus status) {
-        ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(status);
-        return response.writeWith(Mono.just(response.bufferFactory()
-                .wrap(message.getBytes())));
+    private Mono<UserDetailsDto> fetchUserDetails(String username) {
+        return userServiceWebClient
+            .get()
+            .uri("/api/user-auth/users/{username}", username)
+            .retrieve()
+            .bodyToMono(UserDetailsDto.class)
+            .doOnNext(userDetails -> log.debug("Fetched user details for: {}", username))
+            .onErrorResume(ex -> {
+                log.warn("Failed to fetch user details for {}: {}", username, ex.getMessage());
+                return Mono.empty();
+            });
     }
 }
