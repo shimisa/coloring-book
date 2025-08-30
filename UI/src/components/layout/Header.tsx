@@ -113,11 +113,11 @@ const Header = () => {
   }, []);
 
   const userInitials = React.useMemo(() => {
-    if (userData?.username && userData?.password) {
-      // Take first letter from username and password to make "SS"
-      const firstInitial = userData.username.charAt(0);
-      const secondInitial = userData.password.charAt(0);
-      return `${firstInitial}${secondInitial}`.toUpperCase();
+    if (userData?.firstName && userData?.lastName) {
+      // Take first letter from firstName and lastName
+      const firstInitial = userData.firstName.charAt(0);
+      const lastInitial = userData.lastName.charAt(0);
+      return `${firstInitial}${lastInitial}`.toUpperCase();
     }
     return '';
   }, [userData]);
