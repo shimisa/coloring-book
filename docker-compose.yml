@@ -1,16 +1,129 @@
+version: '3.8'
+
 services:
-  mysql:
+  # MySQL database for user-auth service
+  user-auth-db:
     image: mysql:8.0
-    container_name: mysql_container
+    container_name: user-auth-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - user_auth_data:/var/lib/mysql
+    networks:
+      - photo-painter-network
+    restart: unless-stopped
+
+  # MySQL database for photo-painter service
+  photo-painter-db:
+    image: mysql:8.0
+    container_name: photo-painter-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE_SERVER}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3308:3306"
+    volumes:
+      - photo_painter_data:/var/lib/mysql
+    networks:
+      - photo-painter-network
+    restart: unless-stopped
+
+  # User Authentication Service
+  user-auth-service:
+    build:
+      context: ./user-auth-pp
+      dockerfile: Dockerfile
+    container_name: user-auth-service
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      EMAIL_USERNAME: ${EMAIL_USERNAME}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:mysql://user-auth-db:3306/${MYSQL_DATABASE}?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "8081:8081"
+    depends_on:
+      - user-auth-db
+    networks:
+      - photo-painter-network
+    restart: unless-stopped
+
+  # Photo Painter Service
+  photo-painter-service:
+    build:
+      context: ./photo-painter
+      dockerfile: Dockerfile
+    container_name: photo-painter-service
+    environment:
+      MYSQL_DATABASE_SERVER: ${MYSQL_DATABASE_SERVER}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      OPEN_AI_KEY: ${OPEN_AI_KEY}
+      SPRING_DATASOURCE_URL: jdbc:mysql://photo-painter-db:3306/${MYSQL_DATABASE_SERVER}?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "8082:8082"
+    depends_on:
+      - photo-painter-db
+    networks:
+      - photo-painter-network
+    volumes:
+      - photo_uploads:/app/uploads
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway-pp
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      APP_USER_AUTH_SERVICE_URL: http://user-auth-service:8081
+      APP_PHOTO_PAINTER_SERVICE_URL: http://photo-painter-service:8082
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-auth-service
+      - photo-painter-service
+    networks:
+      - photo-painter-network
+    restart: unless-stopped
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./UI
+      dockerfile: Dockerfile
+    container_name: photo-painter-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    networks:
+      - photo-painter-network
+    restart: unless-stopped
+    environment:
+      REACT_APP_API_URL: http://localhost:8080
 
 volumes:
-  mysql_data:
+  user_auth_data:
+    driver: local
+  photo_painter_data:
+    driver: local
+  photo_uploads:
+    driver: local
+
+networks:
+  photo-painter-network:
+    driver: bridge
