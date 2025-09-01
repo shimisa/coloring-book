@@ -107,7 +107,7 @@ services:
       dockerfile: Dockerfile
     container_name: photo-painter-frontend
     ports:
-      - "80:3000"
+      - "80:80"
     depends_on:
       - api-gateway
     networks:
