@@ -4,24 +4,20 @@ import {
   Box,
   Typography,
   Button,
-  LinearProgress,
   Paper,
   IconButton,
   Grid,
   Zoom,
   useTheme,
-  CircularProgress,
 } from '@mui/material';
 import { styled, keyframes } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
-import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import uploadService from '../../services/upload.service';
-import { SelectedImage } from '../../types/upload.types';
 
 const float = keyframes`
   0% {
@@ -73,31 +69,14 @@ const PreviewImage = styled('img')({
   borderRadius: '8px',
 });
 
-const ProcessingOverlay = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: '12px',
-}));
-
 interface UploadedImage {
   file: File;
   preview: string;
-  processing?: boolean;
-  converted?: boolean;
 }
 
 const ImageUploader: React.FC = () => {
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const { showToast, isAuthenticated } = useApp();
+  const { showToast, isAuthenticated, setSelectedImages } = useApp();
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -132,9 +111,16 @@ const ImageUploader: React.FC = () => {
       
       if (acceptedFiles.length > 0) {
         showToast('התמונות נוספו בהצלחה! 🎨', 'success');
-        const audio = new Audio('/sounds/upload-success.mp3');
-        audio.volume = 0.3;
-        audio.play().catch(() => {});
+        try {
+          const audio = new Audio('/sounds/upload-success.mp3');
+          audio.volume = 0.3;
+          audio.load(); // Preload the audio
+          audio.play().catch((error) => {
+            console.warn('Could not play audio:', error);
+          });
+        } catch (error) {
+          console.warn('Could not create audio:', error);
+        }
       }
     } catch (error) {
       showToast('שגיאה בהוספת התמונות', 'error');
@@ -155,70 +141,42 @@ const ImageUploader: React.FC = () => {
     showToast('התמונה הוסרה', 'info');
   };
 
-  const handleConvert = async (index: number) => {
-    try {
-      setUploadedImages(prev => prev.map((img, i) => 
-        i === index ? { ...img, processing: true } : img
-      ));
-      setIsProcessing(true);
-
-      const optimizedImage = await uploadService.optimizeImage(uploadedImages[index].file);
-      const response = await uploadService.uploadImage(optimizedImage);
-
-      setUploadedImages(prev => prev.map((img, i) => 
-        i === index ? { 
-          ...img, 
-          processing: false,
-          converted: true,
-        } : img
-      ));
-
-      showToast('התמונה הומרה בהצלחה! 🎨', 'success');
-      
-      // Play a magic sound effect
-      const audio = new Audio('/sounds/magic-convert.mp3');
-      audio.volume = 0.3;
-      audio.play().catch(() => {});
-
-    } catch (error) {
-      showToast('שגיאה בהמרת התמונה', 'error');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleContinue = () => {
-    const convertedImages = uploadedImages.filter(img => img.converted);
-    if (convertedImages.length === 0) {
-      showToast('אנא המירו לפחות תמונה אחת לדף צביעה', 'warning');
-      return;
-    }
-    navigate('/gallery');
-    showToast('התמונות נוספו לגלריה שלך! 🎨', 'success');
-  };
-
-  const handleContinueToShipping = async () => {
+  const handleContinueToGallery = () => {
     if (uploadedImages.length === 0) {
       showToast('אנא העלו לפחות תמונה אחת', 'warning');
       return;
     }
+    
+    // Convert local images to SelectedImage format and store in context
+    const selectedImages = uploadedImages.map(img => ({
+      file: img.file,
+      preview: img.preview,
+      processedFile: img.file, // Use the original file as processed
+      isProcessed: true // Mark as processed by default
+    }));
+    
+    setSelectedImages(selectedImages);
+    navigate('/gallery');
+    showToast('התמונות נוספו לגלריה שלך! 🎨', 'success');
+  };
 
-    try {
-      setIsProcessing(true);
-      // Optimize all images first
-      const optimizedFiles = await Promise.all(
-        uploadedImages.map(image => uploadService.optimizeImage(image.file))
-      );
-      
-      // Upload all images in a single request
-      await uploadService.uploadMultipleImages(optimizedFiles);
-      showToast('התמונות הועלו בהצלחה!', 'success');
-      navigate('/shipping');
-    } catch (error) {
-      showToast('שגיאה בהעלאת התמונות', 'error');
-    } finally {
-      setIsProcessing(false);
+  const handleContinueToShipping = () => {
+    if (uploadedImages.length === 0) {
+      showToast('אנא העלו לפחות תמונה אחת', 'warning');
+      return;
     }
+    
+    // Prepare images for shipping
+    const selectedImages = uploadedImages.map(img => ({
+      file: img.file,
+      preview: img.preview,
+      processedFile: img.file, // Use the original file as processed
+      isProcessed: true // Mark as processed by default
+    }));
+    
+    setSelectedImages(selectedImages);
+    showToast('התמונות מוכנות להזמנה!', 'success');
+    navigate('/shipping');
   };
 
   return (
@@ -259,25 +217,7 @@ const ImageUploader: React.FC = () => {
                       src={image.preview}
                       alt={`תמונה ${index + 1}`}
                     />
-                    {image.processing && (
-                      <ProcessingOverlay>
-                        <AutoFixHighIcon
-                          sx={{
-                            fontSize: 40,
-                            color: theme.palette.primary.main,
-                            animation: `${float} 1s ease-in-out infinite`,
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ mt: 2 }}>
-                          מעבד את התמונה...
-                        </Typography>
-                        <LinearProgress
-                          sx={{ width: '80%', mt: 1 }}
-                          color="primary"
-                        />
-                      </ProcessingOverlay>
-                    )}
-                    <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-start' }}>
+                    <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                       <IconButton
                         color="error"
                         onClick={() => handleDelete(index)}
@@ -301,12 +241,12 @@ const ImageUploader: React.FC = () => {
             display: 'flex',
             gap: 2,
           }}>
-            <Zoom in={uploadedImages.some(img => img.converted)}>
+            <Zoom in={uploadedImages.length > 0}>
               <Button
                 variant="contained"
                 color="primary"
                 size="large"
-                onClick={handleContinue}
+                onClick={handleContinueToGallery}
                 sx={{
                   borderRadius: '25px',
                   px: 4,
@@ -325,14 +265,13 @@ const ImageUploader: React.FC = () => {
                 color="secondary"
                 size="large"
                 onClick={handleContinueToShipping}
-                disabled={isProcessing}
                 sx={{
                   borderRadius: '25px',
                   px: 4,
                   py: 1.5,
                   boxShadow: theme.shadows[4],
                 }}
-                startIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : <LocalShippingIcon />}
+                startIcon={<LocalShippingIcon />}
               >
                 המשך להזמנה
               </Button>

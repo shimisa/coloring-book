@@ -14,4 +14,6 @@ export interface ProcessingOptions {
 export interface SelectedImage {
   file: File;
   preview: string;
+  processedFile?: File; // Add processed file for local storage
+  isProcessed?: boolean; // Track if image has been processed locally
 }

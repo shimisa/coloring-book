@@ -25,7 +25,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useApp } from '../../context/AppContext';
 import shippingService, { ShippingAddress, OrderDetails, ShippingCost } from '../../services/shipping.service';
 import uploadService from '../../services/upload.service';
-import { UploadResponse } from '../../types/upload.types';
+import { UploadResponse, SelectedImage } from '../../types/upload.types';
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
@@ -57,11 +57,6 @@ const validationSchema = Yup.object({
 });
 
 const steps = ['בחירת פורמט', 'פרטי משלוח', 'סיכום ותשלום'];
-
-interface SelectedImage {
-  file: File;
-  preview: string;
-}
 
 interface ShippingFormProps {
   selectedImages: SelectedImage[];
@@ -128,13 +123,18 @@ const ShippingForm: React.FC<ShippingFormProps> = ({
   const handleSubmitOrder = async () => {
     setIsSubmitting(true);
     try {
-      // First upload all images
+      showToast('מעלה תמונות לשרת...', 'info');
+      
+      // First upload all images to server now that order is being finalized
       const uploadPromises = selectedImages.map(async (image) => {
-        const optimizedImage = await uploadService.optimizeImage(image.file);
+        // Use the processed file if available, otherwise use original
+        const fileToUpload = image.processedFile || image.file;
+        const optimizedImage = await uploadService.optimizeImage(fileToUpload);
         return await uploadService.uploadImage(optimizedImage);
       });
 
       const uploadedImages: UploadResponse[] = await Promise.all(uploadPromises);
+      showToast('התמונות הועלו בהצלחה!', 'success');
       
       // Now create the order with the uploaded image IDs
       const order = await shippingService.createOrder(formik.values, {

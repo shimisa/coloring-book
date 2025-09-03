@@ -5,14 +5,6 @@ import { authService } from '../services/auth.service';
 import { SelectedImage } from '../types/upload.types';
 import axios from 'axios';
 
-interface ToastProps {
-  open: boolean;
-  message: string;
-  severity: AlertColor;
-  onClose: () => void;
-  autoHideDuration?: number;
-}
-
 interface AppContextType {
   showToast: (message: string, severity: AlertColor) => void;
   isProcessing: boolean;
@@ -41,7 +33,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -172,10 +164,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const playSound = useCallback((soundName: 'upload-success' | 'magic-convert' | 'notification') => {
-    const audio = new Audio(`/sounds/${soundName}.mp3`);
-    audio.play().catch(error => {
-      console.error('Error playing sound:', error);
-    });
+    try {
+      const audio = new Audio(`/sounds/${soundName}.mp3`);
+      audio.volume = 0.3;
+      audio.load(); // Preload the audio
+      audio.play().catch(error => {
+        console.warn('Could not play sound:', error);
+      });
+    } catch (error) {
+      console.warn('Could not create audio:', error);
+    }
   }, []);
 
   const value = {

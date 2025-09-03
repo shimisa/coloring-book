@@ -31,9 +31,12 @@ const GalleryContainer = styled(Box)(({ theme }) => ({
 const ImageCard = styled(Card)(({ theme }) => ({
   position: 'relative',
   borderRadius: '12px',
-  transition: 'transform 0.2s',
+  transition: 'transform 0.2s, box-shadow 0.2s',
   '&:hover': {
     transform: 'scale(1.02)',
+  },
+  '&:hover .delete-button': {
+    opacity: 1,
   },
 }));
 
@@ -54,14 +57,19 @@ const ImageOverlay = styled(Box)(({ theme }) => ({
   },
 }));
 
-const SelectCheckbox = styled(Checkbox)(({ theme }) => ({
+const DeleteButton = styled(IconButton)(({ theme }) => ({
   position: 'absolute',
   top: 8,
   right: 8,
   zIndex: 1,
   color: '#fff',
-  '&.Mui-checked': {
-    color: theme.palette.primary.main,
+  opacity: 0,
+  transition: 'opacity 0.2s ease-in-out',
+  backgroundColor: 'rgba(220, 53, 69, 0.8)',
+  borderRadius: '4px',
+  '&:hover': {
+    backgroundColor: 'rgba(220, 53, 69, 1)',
+    opacity: 1,
   },
 }));
 
@@ -70,37 +78,20 @@ interface ImageGalleryProps {
 }
 
 const ImageGallery: React.FC<ImageGalleryProps> = ({ onImagesSelected }) => {
-  const [images, setImages] = useState<SelectedImage[]>([]);
-  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const { showToast } = useApp();
+  const { showToast, selectedImages, setSelectedImages } = useApp();
   const navigate = useNavigate();
 
-  const handleImageSelect = (preview: string) => {
-    const newSelected = new Set(selectedImages);
-    
-    if (newSelected.has(preview)) {
-      newSelected.delete(preview);
-    } else if (newSelected.size >= 10) {
-      showToast('ניתן לבחור עד 10 תמונות בלבד', 'warning');
-      return;
-    } else {
-      newSelected.add(preview);
-    }
-    
-    setSelectedImages(newSelected);
-    const selectedImageObjects = images.filter(img => newSelected.has(img.preview));
-    onImagesSelected(selectedImageObjects);
+  const handleDelete = (preview: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const updatedImages = selectedImages.filter(img => img.preview !== preview);
+    setSelectedImages(updatedImages);
+    showToast('התמונה הוסרה', 'info');
   };
 
-  const handleDelete = (preview: string) => {
-    setImages(images.filter(img => img.preview !== preview));
-    setSelectedImages(prev => {
-      const newSelected = new Set(prev);
-      newSelected.delete(preview);
-      return newSelected;
-    });
-    showToast('התמונה הוסרה', 'info');
+  const handleContinueToOrder = () => {
+    // All images in gallery are part of the order
+    onImagesSelected(selectedImages);
   };
 
   return (
@@ -110,18 +101,22 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ onImagesSelected }) => {
           הגלריה שלי
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          נבחרו {selectedImages.size} תמונות מתוך {images.length}
+          {selectedImages.length} תמונות מוכנות להזמנה
         </Typography>
       </Box>
 
       <Grid container spacing={3}>
-        {images.map((image) => (
+        {selectedImages.map((image) => (
           <Grid item xs={12} sm={6} md={4} key={image.preview}>
             <ImageCard>
-              <SelectCheckbox
-                checked={selectedImages.has(image.preview)}
-                onChange={() => handleImageSelect(image.preview)}
-              />
+              <DeleteButton
+                className="delete-button"
+                onClick={(event) => handleDelete(image.preview, event)}
+                title="מחק תמונה"
+                size="small"
+              >
+                <DeleteIcon fontSize="small" />
+              </DeleteButton>
               <CardMedia
                 component="img"
                 height="200"
@@ -136,18 +131,12 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ onImagesSelected }) => {
                   >
                     <VisibilityIcon />
                   </IconButton>
-                  <IconButton
-                    color="inherit"
-                    onClick={() => handleDelete(image.preview)}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
                 </Box>
               </ImageOverlay>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
-                    מוכן להמרה
+                    מוכן להזמנה
                   </Typography>
                   <ColorLensIcon color="primary" />
                 </Box>
@@ -157,7 +146,7 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ onImagesSelected }) => {
         ))}
       </Grid>
 
-      <Zoom in={selectedImages.size > 0}>
+      <Zoom in={selectedImages.length > 0}>
         <Fab
           color="primary"
           variant="extended"
@@ -167,13 +156,10 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ onImagesSelected }) => {
             right: 16,
             zIndex: 1000,
           }}
-          onClick={() => {
-            const selectedImageObjects = images.filter(img => selectedImages.has(img.preview));
-            onImagesSelected(selectedImageObjects);
-          }}
+          onClick={handleContinueToOrder}
         >
           <ShoppingCartIcon sx={{ mr: 1 }} />
-          המשך להזמנה ({selectedImages.size})
+          המשך להזמנה ({selectedImages.length})
         </Fab>
       </Zoom>
 
@@ -201,7 +187,7 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ onImagesSelected }) => {
         </Box>
       )}
 
-      {images.length === 0 && (
+      {selectedImages.length === 0 && (
         <Box sx={{ textAlign: 'center', py: 5 }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             אין תמונות בגלריה
