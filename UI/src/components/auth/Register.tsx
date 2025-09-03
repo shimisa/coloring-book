@@ -296,7 +296,13 @@ const Register = () => {
           </Button>
 
           <Box sx={{ textAlign: 'center' }}>
-            <Link href="/login" variant="body2">
+            <Link 
+              component="button" 
+              type="button"
+              onClick={() => navigate('/login')} 
+              variant="body2"
+              sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+            >
               {"כבר יש לך חשבון? התחבר/י כאן"}
             </Link>
           </Box>

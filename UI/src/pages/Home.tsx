@@ -13,6 +13,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
@@ -93,6 +94,7 @@ const features = [
 const Home = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const navigate = useNavigate();
 
   return (
     <Box>
@@ -121,7 +123,7 @@ const Home = () => {
             size="large"
             color="secondary"
             startIcon={<CloudUploadIcon />}
-            href="/upload"
+            onClick={() => navigate('/upload')}
             sx={{
               py: 2,
               px: 4,
@@ -212,12 +214,17 @@ const Home = () => {
           variant="contained"
           color="primary"
           size="large"
-          href="/register"
+          onClick={() => navigate('/register')}
           sx={{ mr: 2 }}
         >
           הרשמה חינם
         </Button>
-        <Button variant="outlined" color="primary" size="large" href="/login">
+        <Button 
+          variant="outlined" 
+          color="primary" 
+          size="large" 
+          onClick={() => navigate('/login')}
+        >
           התחברות
         </Button>
       </Container>

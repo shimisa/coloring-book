@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useTransition,
 import type { AlertColor } from '@mui/material';
 import { CircularProgress } from '@mui/material';
 import { authService } from '../services/auth.service';
+import { SelectedImage } from '../types/upload.types';
 import axios from 'axios';
 
 interface ToastProps {
@@ -19,7 +20,14 @@ interface AppContextType {
   playSound: (soundName: 'upload-success' | 'magic-convert' | 'notification') => void;
   isAuthenticated: boolean;
   user: any | null;
-  isInitialized: boolean; // Add this to the context value
+  isInitialized: boolean;
+  selectedImages: SelectedImage[];
+  setSelectedImages: (images: SelectedImage[]) => void;
+  // Toast state
+  toastOpen: boolean;
+  toastMessage: string;
+  toastSeverity: AlertColor;
+  handleCloseToast: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -32,6 +40,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isInitialized, setIsInitialized] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const [isPending, startTransition] = useTransition();
   const [isReady, setIsReady] = useState(false);
 
@@ -159,9 +168,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const handleCloseToast = useCallback(() => {
-    startTransition(() => {
-      setToastOpen(false);
-    });
+    setToastOpen(false);
   }, []);
 
   const playSound = useCallback((soundName: 'upload-success' | 'magic-convert' | 'notification') => {
@@ -178,11 +185,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     playSound,
     isAuthenticated,
     user,
-    isInitialized, // Add this to the context value
+    isInitialized,
+    selectedImages,
+    setSelectedImages,
+    toastOpen,
+    toastMessage,
+    toastSeverity,
+    handleCloseToast,
   };
-
-  // Dynamically import Toast component to avoid circular dependency
-  const Toast = React.lazy(() => import('../components/shared/Toast'));
 
   // Show loading state while initializing auth
   if (!isReady) {
@@ -192,15 +202,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={value}>
       {children}
-      <React.Suspense fallback={null}>
-        <Toast
-          open={toastOpen}
-          message={toastMessage}
-          severity={toastSeverity}
-          onClose={handleCloseToast}
-          autoHideDuration={4000}
-        />
-      </React.Suspense>
     </AppContext.Provider>
   );
 };

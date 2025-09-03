@@ -144,11 +144,23 @@ const Login = () => {
           </Button>
 
           <Box sx={{ textAlign: 'center' }}>
-            <Link href="/forgot-password" variant="body2">
+            <Link 
+              component="button" 
+              type="button"
+              onClick={() => navigate('/forgot-password')} 
+              variant="body2"
+              sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+            >
               שכחת סיסמה?
             </Link>
             <Box sx={{ mt: 2 }}>
-              <Link href="/register" variant="body2">
+              <Link 
+                component="button" 
+                type="button"
+                onClick={() => navigate('/register')} 
+                variant="body2"
+                sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+              >
                 {"אין לך חשבון? הירשם עכשיו"}
               </Link>
             </Box>

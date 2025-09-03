@@ -19,6 +19,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import { useNavigate } from 'react-router-dom';
 import { SelectedImage } from '../../types/upload.types';
 import { useApp } from '../../context/AppContext';
 import uploadService from '../../services/upload.service';
@@ -73,6 +74,7 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ onImagesSelected }) => {
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showToast } = useApp();
+  const navigate = useNavigate();
 
   const handleImageSelect = (preview: string) => {
     const newSelected = new Set(selectedImages);
@@ -207,7 +209,7 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ onImagesSelected }) => {
           <Button
             variant="contained"
             color="primary"
-            href="/upload"
+            onClick={() => navigate('/upload')}
             startIcon={<ColorLensIcon />}
           >
             העלה תמונות חדשות

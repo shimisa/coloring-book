@@ -100,7 +100,7 @@ const Header = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const location = useLocation();
-  const { showToast } = useApp();
+  const { showToast, selectedImages } = useApp();
   const isAuthenticated = authService.isAuthenticated();
 
   useEffect(() => {
@@ -141,12 +141,22 @@ const Header = () => {
     navigate('/');
   };
 
-  const handleNavigation = (path: string, isProtected: boolean) => {
+  const handleNavigation = (path: string, isProtected: boolean, isFlowProtected?: boolean) => {
     if (isProtected && !isAuthenticated) {
       showToast('יש להתחבר תחילה', 'warning');
       navigate('/login', { state: { from: location } });
       return;
     }
+    
+    // Check flow protection for shipping page
+    if (isFlowProtected && path === '/shipping') {
+      if (selectedImages.length === 0) {
+        showToast('אנא בחרו תמונות מהגלריה תחילה', 'warning');
+        navigate('/gallery');
+        return;
+      }
+    }
+    
     navigate(path);
     handleMenuClose();
     setMobileOpen(false);
@@ -166,7 +176,7 @@ const Header = () => {
           <ListItem
             button
             key={item.text}
-            onClick={() => handleNavigation(item.path, item.protected)}
+            onClick={() => handleNavigation(item.path, item.protected, item.flowProtected)}
             selected={location.pathname === item.path}
           >
             <ListItemIcon>{item.icon}</ListItemIcon>
@@ -200,7 +210,7 @@ const Header = () => {
               <NavButton
                 key={item.text}
                 startIcon={item.icon}
-                onClick={() => handleNavigation(item.path, item.protected)}
+                onClick={() => handleNavigation(item.path, item.protected, item.flowProtected)}
                 variant={location.pathname === item.path ? 'contained' : 'text'}
                 color={location.pathname === item.path ? 'primary' : 'inherit'}
               >

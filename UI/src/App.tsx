@@ -18,6 +18,7 @@ const EmailConfirmation = React.lazy(() => import('./components/auth/EmailConfir
 const ImageUploader = React.lazy(() => import('./components/upload/ImageUploader'));
 const ImageGallery = React.lazy(() => import('./components/gallery/ImageGallery'));
 const ShippingForm = React.lazy(() => import('./components/shipping/ShippingForm'));
+const Toast = React.lazy(() => import('./components/shared/Toast'));
 const Home = React.lazy(() => import('./pages/Home'));
 
 // Create RTL cache and theme
@@ -93,11 +94,10 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 };
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isInitialized, showToast } = useApp();
+  const { isAuthenticated, isInitialized } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
 
   useEffect(() => {
     if (!isInitialized) {
@@ -111,17 +111,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
           replace: true,
           state: { from: location }
         });
-      } else {
-        // Flow protection logic
-        const { pathname } = location;
-        if (pathname === '/shipping' && selectedImages.length === 0) {
-          setIsRedirecting(true);
-          navigate('/gallery');
-          showToast('אנא בחרו תמונות מהגלריה תחילה', 'warning');
-        }
       }
     }
-  }, [isAuthenticated, navigate, location, isRedirecting, selectedImages.length, showToast, isInitialized]);
+  }, [isAuthenticated, navigate, location, isRedirecting, isInitialized]);
 
   if (!isInitialized) {
     return <LoadingFallback />;
@@ -131,10 +123,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const AppContent: React.FC = () => {
-  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const [isPending, startTransition] = useTransition();
   const navigate = useNavigate();
-  const { showToast } = useApp();
+  const { showToast, selectedImages, setSelectedImages, toastOpen, toastMessage, toastSeverity, handleCloseToast } = useApp();
 
   const handleImagesSelected = (images: SelectedImage[]) => {
     if (images.length === 0) {
@@ -203,6 +194,16 @@ const AppContent: React.FC = () => {
       </Container>
 
       <Footer />
+      
+      <Suspense fallback={null}>
+        <Toast
+          open={toastOpen}
+          message={toastMessage}
+          severity={toastSeverity}
+          onClose={handleCloseToast}
+          autoHideDuration={4000}
+        />
+      </Suspense>
     </Box>
   );
 };
