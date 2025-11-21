@@ -48,23 +48,29 @@ public class EmailService implements EmailSender {
     @Override
     @Async("virtualExecutor")
     public void send(String to, String email) {
+        send(to, email, SUBJECT);
+    }
+
+    @Override
+    @Async("virtualExecutor")
+    public void send(String to, String email, String subject) {
         try {
-            Message message = createEmailMessage(to, email);
+            Message message = createEmailMessage(to, email, subject);
             Transport.send(message);
             LOGGER.info("Email sent to {}", to);
         } catch (MessagingException e) {
             LOGGER.error("Issues sending email to {}", to, e);
-            throw new RuntimeException(e);
+             throw new RuntimeException(e);
         }
     }
 
-    private Message createEmailMessage(String to, String email) throws MessagingException {
+    private Message createEmailMessage(String to, String email, String subject) throws MessagingException {
         Session session = createEmailSession();
         Message message = new MimeMessage(session);
         message.setFrom(new InternetAddress(FROM_EMAIL));
         message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
-        message.setSubject(SUBJECT);
-        message.setText(email);
+        message.setSubject(subject);
+        message.setContent(email, "text/html; charset=utf-8");
         return message;
     }
 
