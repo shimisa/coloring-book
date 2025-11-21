@@ -165,6 +165,71 @@ class AuthService {
     }
   }
 
+  async forgotPassword(email: string): Promise<void> {
+    try {
+      console.log('Making forgot password request to:', `${API_URL}/forgot-password`);
+      
+      const response = await axios.post(`${API_URL}/forgot-password`, 
+        { email },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          withCredentials: true
+        }
+      );
+      
+      console.log('Forgot password response:', response);
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
+      
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.status === 404) {
+        throw new Error('כתובת האימייל לא נמצאה במערכת');
+      } else if (error.response?.status === 400) {
+        throw new Error('כתובת אימייל לא תקינה');
+      }
+      throw new Error('שגיאה בשליחת קישור איפוס סיסמה. אנא נסו שוב מאוחר יותר');
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    try {
+      console.log('Making reset password request to:', `${API_URL}/reset-password`);
+      
+      const response = await axios.post(`${API_URL}/reset-password`,
+        { 
+          token,
+          newPassword 
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          withCredentials: true
+        }
+      );
+      
+      console.log('Reset password response:', response);
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
+      
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.status === 404) {
+        throw new Error('הקישור לאיפוס הסיסמה לא תקין או שפג תוקפו');
+      } else if (error.response?.status === 400) {
+        throw new Error('איפוס הסיסמה נכשל. אנא בדקו את הפרטים ונסו שוב');
+      }
+      throw new Error('שגיאה באיפוס הסיסמה. אנא נסו שוב מאוחר יותר');
+    }
+  }
+
   async logout(): Promise<void> {
     try {
       // Make the server-side logout call to clear the session and invalidate cookies

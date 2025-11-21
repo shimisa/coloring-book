@@ -15,6 +15,8 @@ const Footer = React.lazy(() => import('./components/layout/Footer'));
 const Login = React.lazy(() => import('./components/auth/Login'));
 const Register = React.lazy(() => import('./components/auth/Register'));
 const EmailConfirmation = React.lazy(() => import('./components/auth/EmailConfirmation'));
+const ForgotPassword = React.lazy(() => import('./components/auth/ForgotPassword'));
+const ResetPassword = React.lazy(() => import('./components/auth/ResetPassword'));
 const ImageUploader = React.lazy(() => import('./components/upload/ImageUploader'));
 const ImageGallery = React.lazy(() => import('./components/gallery/ImageGallery'));
 const ShippingForm = React.lazy(() => import('./components/shipping/ShippingForm'));
@@ -161,6 +163,8 @@ const AppContent: React.FC = () => {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/register/confirm-email" element={<EmailConfirmation />} />
           <Route path="/confirm-email" element={<EmailConfirmation />} />
           <Route
