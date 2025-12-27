@@ -3,37 +3,57 @@ version: '3.8'
 services:
   # Kafka broker (KRaft mode - no Zookeeper needed)
   kafka:
-    image: apache/kafka:3.7.0
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka-local
     container_name: kafka-local
     ports:
       - "9092:9092"
+      - "9093:9093"
     environment:
-      # KRaft settings
+      KAFKA_PROCESS_ROLES: 'broker,controller'
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      # Listeners
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # Cluster ID for KRaft
-      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-      # Topic settings
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka-local:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,INTERNAL://0.0.0.0:29092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092,INTERNAL://kafka-local:29092'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'INTERNAL'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     volumes:
-      - kafka_local_data:/tmp/kraft-combined-logs
+      - kafka_local_data:/var/lib/kafka/data
+    networks:
+      - photo-painter-local
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 40s
+
+  # Kafka UI for monitoring and management
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    hostname: kafka-ui
+    container_name: kafka-ui-local
+    ports:
+      - "8090:8080"
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-local:29092
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
+    networks:
+      - photo-painter-local
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
 
   # Single MySQL database server for all services
   mysql-db:
@@ -48,6 +68,8 @@ services:
     volumes:
       - mysql_local_data:/var/lib/mysql
       - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - photo-painter-local
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
@@ -55,9 +77,12 @@ services:
       timeout: 5s
       retries: 5
 
+networks:
+  photo-painter-local:
+    driver: bridge
+
 volumes:
   kafka_local_data:
     driver: local
   mysql_local_data:
     driver: local
-
