@@ -1,39 +1,63 @@
 version: '3.8'
 
 services:
-  # MySQL database for user-auth service
-  user-auth-db:
-    image: mysql:8.0
-    container_name: user-auth-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+  # Kafka broker (KRaft mode - no Zookeeper needed)
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka
     ports:
-      - "3307:3306"
+      - "9092:9092"
+    environment:
+      # KRaft settings
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Listeners
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Cluster ID for KRaft
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      # Topic settings
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     volumes:
-      - user_auth_data:/var/lib/mysql
+      - kafka_data:/tmp/kraft-combined-logs
     networks:
       - photo-painter-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
-  # MySQL database for photo-painter service
-  photo-painter-db:
+  # Single MySQL database server for all services
+  mysql-db:
     image: mysql:8.0
-    container_name: photo-painter-mysql
+    container_name: mysql-db
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE_SERVER}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "3308:3306"
+      - "3306:3306"
     volumes:
-      - photo_painter_data:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
     networks:
       - photo-painter-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # User Authentication Service
   user-auth-service:
@@ -47,13 +71,13 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       EMAIL_USERNAME: ${EMAIL_USERNAME}
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
-      SPRING_DATASOURCE_URL: jdbc:mysql://user-auth-db:3306/${MYSQL_DATABASE}?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/user_auth_db?createDatabaseIfNotExist=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "8081:8081"
     depends_on:
-      - user-auth-db
+      - mysql-db
     networks:
       - photo-painter-network
     restart: unless-stopped
@@ -68,17 +92,37 @@ services:
       MYSQL_DATABASE_SERVER: ${MYSQL_DATABASE_SERVER}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       OPEN_AI_KEY: ${OPEN_AI_KEY}
-      SPRING_DATASOURCE_URL: jdbc:mysql://photo-painter-db:3306/${MYSQL_DATABASE_SERVER}?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/photo_painter_db?createDatabaseIfNotExist=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "8082:8082"
     depends_on:
-      - photo-painter-db
+      - mysql-db
     networks:
       - photo-painter-network
     volumes:
       - photo_uploads:/app/uploads
+    restart: unless-stopped
+
+  # Upload Service
+  upload-service:
+    build:
+      context: ./upload-service
+      dockerfile: Dockerfile
+    container_name: upload-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/upload_service_db?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8083:8083"
+    depends_on:
+      - mysql-db
+      - kafka
+    networks:
+      - photo-painter-network
     restart: unless-stopped
 
   # API Gateway
@@ -117,9 +161,9 @@ services:
       REACT_APP_API_URL: http://localhost:8080
 
 volumes:
-  user_auth_data:
+  kafka_data:
     driver: local
-  photo_painter_data:
+  mysql_data:
     driver: local
   photo_uploads:
     driver: local

@@ -36,6 +36,10 @@ spring:
           uri: ${app.photo-painter-service.url}
           predicates:
             - Path=/api/photo-painter/**
+        - id: upload-service
+          uri: ${app.upload-service.url}
+          predicates:
+            - Path=/api/upload-service/**
         # Add other service routes here
 
 app:
@@ -43,6 +47,8 @@ app:
     url: http://localhost:8081
   photo-painter-service:
     url: http://localhost:8082
+  upload-service:
+    url: http://localhost:8083
 
 # JWT configuration
 jwt:

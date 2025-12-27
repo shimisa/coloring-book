@@ -96,6 +96,16 @@ const ImageUploader: React.FC = () => {
       return;
     }
 
+    // Check file sizes (10MB = 10 * 1024 * 1024 bytes)
+    const maxFileSize = 10 * 1024 * 1024; // 10MB
+    const oversizedFiles = acceptedFiles.filter(file => file.size > maxFileSize);
+    
+    if (oversizedFiles.length > 0) {
+      const oversizedNames = oversizedFiles.map(file => file.name).join(', ');
+      showToast(`הקבצים הבאים גדולים מדי (מעל 10MB): ${oversizedNames}`, 'error');
+      return;
+    }
+
     try {
       const newImages: UploadedImage[] = [];
 
@@ -133,6 +143,7 @@ const ImageUploader: React.FC = () => {
       'image/*': ['.jpeg', '.jpg', '.png']
     },
     maxFiles: 10,
+    maxSize: 10 * 1024 * 1024, // 10MB
   });
 
   const handleDelete = (index: number) => {
@@ -202,7 +213,7 @@ const ImageUploader: React.FC = () => {
           </Typography>
         )}
         <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-          ניתן להעלות עד 10 תמונות בפורמט JPG או PNG
+          ניתן להעלות עד 10 תמונות בפורמט JPG או PNG (מקסימום 10MB לתמונה)
         </Typography>
       </UploadBox>
 
