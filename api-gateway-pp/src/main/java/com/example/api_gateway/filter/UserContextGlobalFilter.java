@@ -35,6 +35,7 @@ public class UserContextGlobalFilter implements GlobalFilter, Ordered {
                 try {
                     String userDetailsJson = objectMapper.writeValueAsString(userDetails);
                     requestBuilder.header("X-User-Details", userDetailsJson);
+                    requestBuilder.header("X-User-Id", userDetails.getId().toString());
                     requestBuilder.header("X-User-Email", userDetails.getEmail());
                     requestBuilder.header("X-User-FirstName", userDetails.getFirstName());
                     requestBuilder.header("X-User-LastName", userDetails.getLastName());

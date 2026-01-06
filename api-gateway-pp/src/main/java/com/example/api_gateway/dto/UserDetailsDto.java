@@ -2,8 +2,11 @@ package com.example.api_gateway.dto;
 
 import lombok.Data;
 
+import java.util.UUID;
+
 @Data
 public class UserDetailsDto {
+    private UUID id;
     private String username;
     private String firstName;
     private String lastName;

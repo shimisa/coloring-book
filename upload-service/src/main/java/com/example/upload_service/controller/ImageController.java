@@ -1,6 +1,7 @@
 package com.example.upload_service.controller;
 
 import com.example.upload_service.service.StorageService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -28,8 +29,8 @@ public class ImageController {
     }
 
     @PostMapping("/upload-multiple")
-    public ResponseEntity<List<UploadResponse>> uploadImages(@RequestParam("images") List<MultipartFile> files) throws IOException {
-        String imageUrls = storageService.save(UUID.randomUUID(), files);
+    public ResponseEntity<List<UploadResponse>> uploadImages(@RequestHeader("X-User-Id") String userId, @RequestParam("images") List<MultipartFile> files) throws IOException {
+        String imageUrls = storageService.save(UUID.fromString(userId), files);
         List<UploadResponse> responses = Arrays.stream(imageUrls.split(","))
                 .map(UploadResponse::new)
                 .collect(Collectors.toList());
